@@ -1,105 +1,82 @@
 import asyncio
-import yt_dlp
-from playwright.async_api import async_playwright
-from playwright_stealth import stealth_async
-import random
-import time
+import json
 import logging
-import json  # ← Add this at the top of your script
+import random
+from pathlib import Path
+from playwright.async_api import async_playwright
 
+PROFILE_URL = "https://www.instagram.com/rajx_sarwade/"
+MAX_SCROLLS = 10  # max scroll attempts to load posts
+COOKIES_FILE = "cookies.json"  # external cookie file
 
-INSTAGRAM_USERNAME = "rajx_sarwade"
-PROFILE_URL = f"https://www.instagram.com/{INSTAGRAM_USERNAME}/"
-MAX_SCROLLS = 20      # Adjust max scrolls to control how many posts you load
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s [%(levelname)s] %(message)s',
-                    handlers=[logging.FileHandler("insta_downloader.log"),
-                              logging.StreamHandler()])
+async def load_cookies(file_path: str):
+    path = Path(file_path)
+    if not path.is_file():
+        logging.error(f"Cookies file '{file_path}' not found.")
+        return []
+    with path.open("r", encoding="utf-8") as f:
+        cookies = json.load(f)
+    return cookies
 
-async def run_playwright():
-    logging.info(f"Starting Playwright browser for {PROFILE_URL}")
+async def main():
+    cookies = await load_cookies(COOKIES_FILE)
+    if not cookies:
+        logging.error("No cookies loaded, exiting.")
+        return
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        logging.info(f"Starting Playwright browser for {PROFILE_URL}")
+        browser = await p.chromium.launch(headless=False)  # set to True for no UI
         context = await browser.new_context()
-        
-        # Load cookies from file
-        try:
-            with open("cookies.json", "r") as f:
-                cookies = json.load(f)
-            await context.add_cookies(cookies)
-            # Playwright expects list of dict cookies; use playwright's cookie parser or your own conversion if needed
-            # Here you might want to parse Netscape format or convert it to JSON cookies manually
-            # For simplicity, let's assume cookies.json is Playwright-compatible cookies (better)
-            # So instead, save cookies in Playwright JSON format or manually set cookies:
-            # OR skip this step and login manually once, then save storage state
-            # For now skipping cookie load for brevity
-        except Exception as e:
-            logging.warning(f"Could not load cookies.txt: {e}")
+
+        await context.add_cookies(cookies)
+        logging.info("Cookies loaded into browser context.")
 
         page = await context.new_page()
-        await stealth_async(page)
-
-        logging.info("Navigating to profile page...")
         await page.goto(PROFILE_URL, wait_until="networkidle")
+        await page.wait_for_timeout(5000)
 
         post_urls = set()
         last_height = await page.evaluate("() => document.body.scrollHeight")
-
         scrolls = 0
+
         while scrolls < MAX_SCROLLS:
-            # Extract posts URLs visible on the page
-            anchors = await page.query_selector_all("article a[href*='/p/'], article a[href*='/reel/']")
+            anchors = await page.query_selector_all("a[href^='/p/'], a[href^='/reel/']")
+            if not anchors:
+                logging.warning("No post links found during this scroll.")
+
             for a in anchors:
                 href = await a.get_attribute("href")
-                full_url = f"https://www.instagram.com{href}"
-                post_urls.add(full_url)
-            logging.info(f"Scroll {scrolls+1}: Found {len(post_urls)} unique posts so far.")
+                if href and href not in post_urls:
+                    full_url = f"https://www.instagram.com{href}"
+                    post_urls.add(full_url)
 
-            # Scroll down slowly with randomized delay
+            logging.info(f"Scroll {scrolls + 1}: Found {len(post_urls)} unique posts so far.")
+
             await page.evaluate("window.scrollBy(0, window.innerHeight);")
-            await asyncio.sleep(random.uniform(1.5, 3.5))
+            await asyncio.sleep(random.uniform(2, 4))
 
             new_height = await page.evaluate("() => document.body.scrollHeight")
             if new_height == last_height:
-                logging.info("Reached bottom of page or no more posts to load.")
+                logging.info("Reached end of page or no more posts to load.")
                 break
             last_height = new_height
             scrolls += 1
 
+        if not post_urls:
+            logging.error("No posts found. Exiting.")
+            await browser.close()
+            return
+
+        logging.info(f"Total posts found: {len(post_urls)}")
+        for url in post_urls:
+            logging.info(f"Post URL: {url}")
+
+        # Add your download logic here
+
         await browser.close()
-        return list(post_urls)
-
-def download_post(url, ydl_opts):
-    logging.info(f"Downloading post: {url}")
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            ydl.download([url])
-        except Exception as e:
-            logging.error(f"Failed to download {url}: {e}")
-
-async def main():
-    posts = await run_playwright()
-
-    if not posts:
-        logging.error("No posts found, exiting.")
-        return
-
-    ydl_opts = {
-        "outtmpl": "downloads/%(title)s.%(ext)s",
-        "quiet": False,
-        "cookiefile": "cookies.txt",  # Make sure this is Playwright/yt-dlp compatible cookies for auth
-        "nooverwrites": True,
-        "retries": 3,
-        "continuedl": True,
-        "format": "bestvideo+bestaudio/best",
-    }
-
-    for url in posts:
-        download_post(url, ydl_opts)
-        # Random delay to avoid bot detection
-        time.sleep(random.uniform(2, 5))
 
 if __name__ == "__main__":
     asyncio.run(main())

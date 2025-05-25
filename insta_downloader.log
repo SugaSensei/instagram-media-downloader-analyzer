@@ -14,3 +14,10 @@
 2025-05-25 16:21:57,428 [INFO] Scroll 1: Found 0 unique posts so far.
 2025-05-25 16:22:00,672 [INFO] Reached bottom of page or no more posts to load.
 2025-05-25 16:22:00,751 [ERROR] No posts found, exiting.
+2025-05-25 16:27:37,119 [INFO] Starting Playwright browser for https://www.instagram.com/rajx_sarwade/
+2025-05-25 16:27:38,751 [INFO] Cookies loaded successfully.
+2025-05-25 16:27:39,667 [INFO] Navigating to profile page...
+2025-05-25 16:27:44,356 [WARNING] No post links found during this scroll.
+2025-05-25 16:27:44,357 [INFO] Scroll 1: Found 0 unique posts.
+2025-05-25 16:27:46,772 [INFO] Reached end of page or no more posts to load.
+2025-05-25 16:27:47,151 [ERROR] No posts found. Exiting.
