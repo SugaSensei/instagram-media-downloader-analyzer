@@ -1,6 +1,7 @@
 import requests
 import json
 import time
+from bs4 import BeautifulSoup
 
 BASE_URL = "https://www.instagram.com"
 GRAPHQL_URL = "https://www.instagram.com/graphql/query/"
@@ -12,14 +13,27 @@ HEADERS = {
 }
 
 def get_initial_data(username):
-    url = f"{BASE_URL}/{username}/"
-    r = requests.get(url, headers=HEADERS)
-    if r.status_code != 200:
-        raise Exception(f"Failed to get page: {r.status_code}")
+    # url = f"{BASE_URL}/{username}/"
+    # r = requests.get(url, headers=HEADERS)
+    # if r.status_code != 200:
+    #     raise Exception(f"Failed to get page: {r.status_code}")
     
-    start = r.text.find("window._sharedData = ") + len("window._sharedData = ")
-    end = r.text.find(";</script>",start)
-    json_str = r.text[start:end]
+    # start = r.text.find("window._sharedData = ") + len("window._sharedData = ")
+    # end = r.text.find(";</script>",start)
+    # json_str = r.text[start:end]
+    # data = json.loads(json_str)
+    # return data
+
+    url = f"https://www.instagram.com/{username}/"
+    r = request.get(url, headers=HEADERS)
+    if r.status_code != 200:
+        raise Exception(f"failed to fetch page: {r.status_code}")
+    
+    match = re.search(r"window\.__additionalDataLoaded\('/[^']+',\s*(\{.*?\})\)", r.text)
+    if not match:
+        raise Exception("Could not extract initial JSON data from page.")
+    
+    json_str = match.group(1)
     data = json.loads(json_str)
     return data
 
