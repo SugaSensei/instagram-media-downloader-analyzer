@@ -2,6 +2,7 @@ import requests
 import json
 import time
 from bs4 import BeautifulSoup
+import re
 
 BASE_URL = "https://www.instagram.com"
 GRAPHQL_URL = "https://www.instagram.com/graphql/query/"
@@ -25,7 +26,7 @@ def get_initial_data(username):
     # return data
 
     url = f"https://www.instagram.com/{username}/"
-    r = request.get(url, headers=HEADERS)
+    r = requests.get(url, headers=HEADERS)
     if r.status_code != 200:
         raise Exception(f"failed to fetch page: {r.status_code}")
     
